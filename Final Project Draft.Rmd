@@ -1,0 +1,382 @@
+---
+title: "STAT 240 Final Group Project Draft"
+output: html_document
+---
+
+## Discussion Section 318 Group D
+
+## Members 
+
+Katja Zhou
+
+Max Kortebein
+
+Xuancheng Tu
+
+Dewansh Bista
+
+## Introduction
+
+  As the covid-19 cases are continuously rising globally, we are interested in the ratios of different groups of people and their susceptibility to Covid-19, along with the relationship between state population density and state covid-19 death rate (in this report this phrase refers to (death number due to COVID-19) / population)). 
+
+## Thesis statement
+
+  Based on the data we collected, elderly people and males are more likely to die from the coronavirus, while states with bigger population density are more likely to have a higher COVID-19 death rate.
+  
+## Background
+
+  We have three datasets, one is the from the U.S census, which gives us a breakdown of the U.S population, by sex and age(nc-est2019-alldata-r-file22.csv, retrieved from https://www.census.gov/data/tables/time-series/demo/popest/2010s-national-detail.html#par_textimage_98372960). 
+  
+  The covid-19 deaths data is from C.D.C. (Provisional_COVID-19_Death_Counts_by_Sex__Age__and_State.csv, retrieved from https://data.cdc.gov/NCHS/Provisional-COVID-19-Death-Counts-by-Sex-Age-and-S/9bhg-hcku, retrieved date: November 4th, 2020) which gives us a breakdown of how many people died from coronavirus by state and date. The census data was collected by the U.S government through the census bureau and is verified and trustable due to the importance of the census in government affairs, and descriptions of the complex process are widely available on the internet. The Covid data is collected by the National Center for Health Statistics and then sent to the C.D.C, while there is no description for the process that the data, since it was collected by a government agency specializing in statistics it is trustworthy. The population and population density data is from U.S. census also. 
+
+  The population and population density data is from World Population Review (csvData.csv, retrieved from 
+https://worldpopulationreview.com/state-rankings/state-densities) 
+
+  In the Covid-19 dataset, it specifies the different ways people died from complications with Covid-19. We will be simplifying all of this just to be under the umbrella of dying from Covid-19. The datasets provide the number of deaths due to covid-19 for different age and sex groups. Also the total population of different sex and age groups are also included, along with state population and population density. By these data we can calculate the death rate, which reflects the susceptibility to death caused by covid-19.
+  
+  In the dataset about people infected with Covid-19, there are some NA cells for some certain age groups with small values that were removed in accordance with a privacy law in the U.S.. This is mentioned in the footnote column of the dataset: “One or more data cells have counts between 1-9 and have been suppressed in accordance with NCHS confidentiality standards.”
+  
+  We want to create several graphs to show the relationship between gender and COVID death as well as age and COVID death. A linear regression model will be used to describe relationship between state population density and state covid-19 death rate. Hypothesis tests will be included for all three sections (age, sex, state).
+  
+## Analysis
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+library(tidyverse)
+library(lubridate)
+source("viridis.R")
+source("ggprob.R")
+```
+
+```{r,echo=FALSE}
+#read in data
+covid_raw = read_csv("Provisional_COVID-19_Death_Counts_by_Sex__Age__and_State.csv")
+age_sex_raw = read_csv("nc-est2019-alldata-r-file22.csv") 
+
+```
+
+```{r,echo=FALSE}
+#data transformation
+age_sex_raw <- age_sex_raw %>% 
+  filter(MONTH == 10)
+age_sex <- age_sex_raw %>% 
+  filter(AGE < 999) %>% 
+  mutate(age_group = case_when(AGE >= 0 & AGE <= 17 ~ "0-17 years",
+                               AGE >= 18 & AGE <= 29 ~ "18-29 years",
+                               AGE >= 30 & AGE <= 49 ~ "30-49 years",
+                               AGE >= 50 & AGE <= 64 ~ "50-64 years",
+                               AGE >= 65 & AGE <= 74 ~ "65-74 years",
+                               AGE >= 75 & AGE <= 84 ~ "75-84 years",
+                               AGE >= 85 & AGE < 999~ "85 years and over")) %>% 
+  group_by(age_group) %>% 
+  summarize(total = sum(TOT_POP),
+            total_male = sum(TOT_MALE),
+            total_female = sum(TOT_FEMALE)) %>% 
+  rename(`Age group` = age_group)
+age <- age_sex %>% 
+  select(`Age group`, total)
+sex <- age_sex %>% 
+  summarize(Male = sum(total_male),
+            Female = sum(total_female))
+
+covid_age <- covid_raw %>% 
+  filter(State == "United States") %>% 
+  filter(`Age group` == "0-17 years" | `Age group` == "18-29 years" | `Age group` == "30-49 years" | `Age group` == "50-64 years" | `Age group` == "65-74 years" | `Age group` == "75-84 years" | `Age group` == "85 years and over") %>% 
+  filter(Sex == "All Sexes") %>% 
+  select(`Age group`,`COVID-19 Deaths`) %>% 
+  drop_na()  
+covid_age = left_join(covid_age,age)
+
+#The focus of this project will be restricted to male and female only
+covid_sex <- covid_raw %>%
+  filter(State == "United States") %>%
+  filter(`Age group` == "All Ages") %>%
+  filter(Sex == "Male" | Sex == "Female") %>% 
+  select(Sex,`COVID-19 Deaths`) %>%
+  drop_na() %>% 
+  mutate(total = 0)
+for(i in 1:2){
+  if(covid_sex[i,"Sex"] == "Male"){
+    covid_sex[i,"total"] = pull(sex[1,"Male"])
+  }
+  if(covid_sex[i,"Sex"] == "Female"){
+    covid_sex[i,"total"] = pull(sex[1,"Female"])
+  }
+}
+```
+
+## 1. Age group analysis
+
+```{r,echo=FALSE}
+total_death = sum(pull(covid_age["COVID-19 Deaths"]))
+covid_age_1 <- covid_age %>% 
+  mutate(proportion = `COVID-19 Deaths` / total_death)
+ggplot(covid_age_1, aes(x = `Age group`, y = proportion, fill = `Age group`)) +
+  geom_col() +
+  ylab("Proportion of total death") +
+  ggtitle("Proportion of total death for each age group") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+```
+
+
+```{r,echo=FALSE}
+covid_age_2 <- covid_age %>%
+  mutate(death_rate = `COVID-19 Deaths` / total)
+ggplot(covid_age_2, aes(x = `Age group`, y = death_rate, fill = `Age group`)) +
+  geom_col() +
+  ylab("covid-19 death rate") +
+  ggtitle("COVID-19 death rate (death number due to COVID-19) / population)\nfor different age group") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+```
+
+
+```{r,echo=FALSE}
+## SE for p based on the binomial distribution model
+p_binom_se = function(n,p)
+{
+  return ( sqrt( p*(1-p)/n) )
+}
+## CI for p using point estimate, se, and normal approximation
+p_norm_ci = function(est, se, conf=0.95)
+{
+  z = qnorm(1 - (1 - conf)/2)
+  ci = est + c(-1,1)*z*se
+  return( ci )
+}
+## CI for Agresti-Coull
+p_agresti_ci = function(n, x, conf=0.95)
+{
+  p_tilde = (x+2)/(n+4)
+  se = p_binom_se(n+4, p_tilde)
+  ci = p_norm_ci(p_tilde, se, conf)
+  return( ci )
+}
+covid_age_3 <- covid_age_2 %>% 
+  mutate(p_tilde = (`COVID-19 Deaths` + 2) / (total + 4),
+         zscore1 = qnorm(0.025),
+         zscore2 = qnorm(0.975),
+         se = sqrt(p_tilde*(1-p_tilde)/(total + 4)),
+         ci95_1 = p_tilde + zscore1 * se,
+         ci95_2 = p_tilde + zscore2 * se)
+ggplot(covid_age_3) +
+  geom_point(aes(x = `Age group`, y = p_tilde)) +
+  geom_segment(aes(x = `Age group`, xend = `Age group`, y = ci95_1, yend = ci95_2, color = `Age group`), size = 1.0) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+  ylab("covid-19 death rate") +
+  ggtitle("Agresti-Coull 95% percent confidence interval of\n COVID-19 death rate for different age group")
+```
+
+
+Confidence intervals are small so it might be hard to visualize, so exact value in decimal numbers are shown in the table below. In the table, p_tilde means the estimated death rate of the corresponding age group calculated using Agresti-Coull method.
+
+
+```{r,echo=FALSE}
+covid_age_3 <- covid_age_3 %>% 
+  select(`Age group`, "death_rate", ci95_1, ci95_2) %>% 
+  mutate(death_rate = format(death_rate, scientific = FALSE),
+         ci95_1 = format(ci95_1, scientific = FALSE),
+         ci95_2 = format(ci95_2, scientific = FALSE),) %>% 
+  rename("95%_conf_intvl_1" =ci95_1,
+         "95%_conf_intvl_2" =ci95_2,
+         "p_tilde" = death_rate) 
+covid_age_3
+```
+
+
+Likelihood ratio test
+
+1. State hypothesis
+
+$H_0$: $p_1$ = ... = $p_7$ i.e., covid-19 death rates for different age groups are actually the same. 
+
+$H_1$: not $p_1$ = ... = $p_7$ i.e., covid-19 death rates for different age groups are not the same. 
+
+2.Test statistic
+
+$R$ = $2(ln L_1-lnL_0)$
+
+3.Calculate p-value
+
+```{r,echo=FALSE}
+covid_age_4 <- covid_age %>% 
+  mutate(p_0 = sum(`COVID-19 Deaths`)/sum(total)) %>%
+  mutate(phat = `COVID-19 Deaths` / total) %>% 
+  mutate(log_L0 = dbinom(`COVID-19 Deaths`,total,p_0,log=TRUE),
+         log_L1 = dbinom(`COVID-19 Deaths`,total,phat,log=TRUE))
+lrt = covid_age_4 %>% 
+  summarize(log_L0 = sum(log_L0),
+            log_L1 = sum(log_L1),
+            lrt = 2*(log_L1 - log_L0),
+            R = exp(log_L0-log_L1))
+lrt = lrt %>%
+  mutate(p_value = 1 - pchisq(lrt,6))
+lrt
+```
+
+p-value is less than 0.05 (not exactly 0, but too close to 0 which is unable to be precisely presented by computer), which is statistically significant.
+
+## 2. Sex analysis
+
+
+```{r,echo=FALSE}
+total_death = sum(pull(covid_sex["COVID-19 Deaths"]))
+covid_sex_1 <- covid_sex %>% 
+  mutate(proportion = `COVID-19 Deaths` / total_death)
+ggplot(covid_sex_1, aes(x = Sex, y = proportion, fill = Sex)) +
+  geom_col() +
+  ylab("Proportion of total death") +
+  ggtitle("Proportion of total death for each sex group") 
+```
+
+
+
+```{r,echo=FALSE}
+covid_sex_2 <- covid_sex %>%
+  mutate(death_rate = `COVID-19 Deaths` / total)
+ggplot(covid_sex_2, aes(x = Sex, y = death_rate, fill = Sex)) +
+  geom_col() +
+  ylab("covid-19 death rate") +
+  ggtitle("COVID-19 death rate for different sex group")
+```
+
+
+```{r,echo=FALSE}
+covid_sex_3 <- covid_sex_2 %>% 
+  mutate(p_tilde = (`COVID-19 Deaths` + 2) / (total + 4),
+         zscore1 = qnorm(0.025),
+         zscore2 = qnorm(0.975),
+         se = sqrt(p_tilde*(1-p_tilde)/(total + 4)),
+         ci95_1 = p_tilde + zscore1 * se,
+         ci95_2 = p_tilde + zscore2 * se)
+ggplot(covid_sex_3) +
+  geom_point(aes(x = Sex, y = p_tilde)) +
+  geom_segment(aes(x = Sex, xend = Sex, y = ci95_1, yend = ci95_2, color = Sex), size = 1.0) +
+  ylab("covid-19 death rate") +
+  ggtitle("Agresti-Coull 95% percent confidence interval\nof COVID-19 death rate for different age group")
+```
+
+Exact values of confidence intervals are shown in the table below. In the table, p_tilde means the estimated death rate of the corresponding age group calculated using Agresti-Coull method.
+
+
+```{r,echo=FALSE}
+covid_sex_3 <- covid_sex_3 %>% 
+  select(`Sex`, "death_rate", ci95_1, ci95_2) %>% 
+  mutate(death_rate = format(death_rate, scientific = FALSE),
+         ci95_1 = format(ci95_1, scientific = FALSE),
+         ci95_2 = format(ci95_2, scientific = FALSE),) %>% 
+  rename("95%_conf_intvl_1" =ci95_1,
+         "95%_conf_intvl_2" =ci95_2,
+         "p_tilde" = death_rate) 
+covid_sex_3
+```
+
+Likelihood ratio test
+
+1. State hypothesis
+
+$H_0$: $p_1$ = $p_2$ i.e., the covid-19 death rates of male and female are the same.
+
+$H_1$: $p_1$ ≠ $p_2$ i.e., the covid-19 death rated of male and female are not the same.
+
+2.Test statistic
+
+$R$ = $2(ln L_1-lnL_0)$
+
+3.Calculate p-value
+
+```{r,echo=FALSE}
+covid_sex_4 <- covid_sex %>% 
+  mutate(p_0 = sum(`COVID-19 Deaths`)/sum(total)) %>%
+  mutate(phat = `COVID-19 Deaths` / total) %>% 
+  mutate(log_L0 = dbinom(`COVID-19 Deaths`,total,p_0,log=TRUE),
+         log_L1 = dbinom(`COVID-19 Deaths`,total,phat,log=TRUE))
+lrt = covid_sex_4 %>% 
+  summarize(log_L0 = sum(log_L0),
+            log_L1 = sum(log_L1),
+            lrt = 2*(log_L1 - log_L0),
+            R = exp(log_L0-log_L1))
+lrt = lrt %>%
+  mutate(p_value = 1 - pchisq(lrt,1))
+lrt
+```
+
+p-value is less than 0.05 (not exactly 0, but too close to 0 which is unable to be precisely presented by computer), which is statistically significant.
+
+## 3. State-level analysis
+
+Note that New York City has an observation in the covid data set, but it will be excluded from the state-level analysis since it is not a state.
+
+```{r,echo=FALSE}
+# reading in data and data transformation
+state = read_csv("csvData.csv")
+state[1,"State"] = "District of Columbia" #Washington DC is equivalent to                                                #District of Columbia
+covid_state <- covid_raw %>% 
+  filter(State != "United States") %>% 
+  filter(State != "New York City") %>% 
+  filter(Sex == "All Sexes") %>% 
+  filter(`Age group` == "All Ages") 
+covid_state = left_join(covid_state, state)
+covid_state <- covid_state %>% 
+  select(State, `COVID-19 Deaths`, Density, Pop) %>% 
+  mutate(death_rate = `COVID-19 Deaths` / Pop)   
+correlation = covid_state %>% 
+  summarize(r = cor(Density, death_rate))
+title = with(correlation, paste("correlation =", round(r,3)))
+title = paste("Linear regression model of population density and covid-19\ndeath rate for states in United states with ", title)
+ggplot(covid_state, aes(x = Density, y = death_rate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)+
+  ylab("covid-19 death rate") +
+  ggtitle(title)
+```
+
+Hypothesis test
+
+1. State hypothesis
+
+$H_0$: slope of the regression line is 0
+
+$H_1$: slope of the regression line is not 0
+
+2.Test statistic
+
+$t$ value
+
+3.Summary of linear model
+
+```{r,echo=FALSE}
+fit = lm(death_rate ~ Density, data = covid_state)
+summary(fit)
+```
+
+The p value of slope is 0.0146, which is less than 0.05, which is statistically significant. 
+
+## Analysis
+
+  The original data came in the form in which it is presented in our analysis. We compared each variable with the proportion of deaths and death rate. What we found was a larger death rate and proportion of deaths as age increased and slightly higher proportion of deaths for male vs. female. For the state population density analysis, we used a linear regression line to show the positive correlation ( correlaion = 0.337) between death rate and population density, which means that states with higher population density tend to have higher covid-19 death rate.
+  
+  For the first two analyses, we created likelihood ratio tests, making the null hypothesis that covid-19 death rates were the same for each group. In both of these we rejected the null hypotheses since the p-values are nearly 0 (too small to be presented by computer). There is strong evidence that the covid-19 deaths rates of different age groups are not the same, and the covid-19 death rates of different sex groups are also not the same.In our last analysis our null hypothesis was that the slope of the regression line of state population density and state covid-19 death rate would be zero. We also rejected this hypothesis by calculating a p value which was less than 0.05, which is statistically significant. There is strong evidence that the slope of the regression line of state population density and state covid-19 death rate is not 0.
+
+  The death number of some age and sex groups in some states with death number less than 10 is not included in the data set, as it is mentioned in footnotes that “one or more data cells have counts between 1-9 and have been suppressed in accordance with NCHS confidentiality standards.” It might cause the death rate of those groups of people being underestimated. 
+  
+  Also, from the “provisional-covid-19-death-counts-by-sex-age-and-state.csv” file, we used only data of covid-19 deaths and deleted data of “Pneumonia and COVID-19 Deaths”  and “Pneumonia, Influenza, or COVID-19 Deaths”, so that the death counts in our analysis might be underestimated.
+	
+  Another shortcoming to take into consideration is that our dataset only looks at death and not total cases, and thus does not account for any biases caused by differing standards of medical care for certain groups, which may cause them to be over or under represented in the final death count. For example these biases could be in the form, males may die more since they are more likely to lean Republican, and choose not get as much medical care, or males may die less than females since they on average earn more, and thus get provided better medical care. Thus we have to be careful to draw our conclusion in such a way as to account for biases in the system itself, and not make broad generalizations about external factors such as the biological capabilities of men and women in fighting the virus without considering these biases.
+
+  Based on the results that we have, we can further research on why males are more vulnerable compared  to females. Moreover, further research can be done to investigate which racial groups are more vulnerable to covid-19 than others.
+  
+  Another way that we might be able to address the vulnerability of different genders to Covid 19 is to look at how many people were infected by the virus and how many people died from the virus, then split that data up via gender. Afterwards we can look at the number of deaths compared to the number of infections and see if the percentage differs by gender. This would lead to different conclusions from our work since we compared deaths to the total population, not the infected population. 
+  
+  Obviously, collecting new data when our data becomes outdated would be a good idea. Finding new datasets about Covid 19 deaths per race might give us more understanding about the systemic problems of access to healthcare and even information past that.
+  
+## Conclusion
+
+  We found that people of elder age groups are more vulnerable to covid-19 since the covid-19 death rate is higher for age groups that are older. We also found that males are more vulnerable to covid-19 than females, since the covid-19 death rate is higher for males, compared to females. In addition, states with higher population density also tend to have higher covid-19 death rate since the correlation of these two variables are above 0.
+
+## Reference
+
+^[Provisional_COVID-19_Death_Counts_by_Sex__Age__and_State.csv. C.D.C. Retrieved from https://data.cdc.gov/NCHS/Provisional-COVID-19-Death-Counts-by-Sex-Age-and-S/9bhg-hcku Retrieved date: November 4th, 2020]
+
+^[nc-est2019-alldata-r-file22.csv. United States Census Bureau. Retrieved from https://www.census.gov/data/tables/time-series/demo/popest/2010s-national-detail.html#par_textimage_98372960]
+
+^[csvData.csv. World Population Review. Retrieved from https://worldpopulationreview.com/state-rankings/state-densities]

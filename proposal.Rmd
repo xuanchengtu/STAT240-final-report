@@ -1,0 +1,19 @@
+NAMES: Max Kortebein,  Xuancheng Tu, Dewansh Bista, Katja ZHOU
+
+Description of Communication and Work:
+We have a GroupMe for general communications, and since all of us are in the same time zone we will have a weekly meeting with Google Hangouts or Zoom from 1pm to 2:30pm on Mondays, we will share documents using Google Drive.
+
+Question:
+What gender and age group are the most vulnerable to the coronavirus in the United States and how did they die?
+
+Data Source: 
+catalog.data.gov/dataset/provisional-covid-19-death-counts-by-sex-age-and-state/resource/5ca34364-d193-40e1-ae08-364ef0d8fb06
+
+This dataset from the U.S government gives the number of people in a state that have died from coronavirus, as well as the breakdown by sex, age. In addition it gives the number of people that died from Influenza and Pneumonia. 
+
+In addition to the first dataset we will also find datasets that give the total population and demographic breakdowns (age, sex) of each individual state to compare it against.
+
+Summary of Methods:
+
+Our plan right now is to make a bar graph with the different age groups and their susceptibility to Covid-19. We will also separate by sex and have two graphs in total.
+We will use a binomial model to figure out the chance of a man versus a woman to catch coronavirus by state. 
